@@ -1,0 +1,75 @@
+# Sentiment Research Center settings.
+# Secrets come from environment variables (see .env.example), never from this file.
+
+paths:
+  db: data/src.duckdb
+  cache: data/cache
+  reports: reports
+
+llm:
+  # "openrouter" uses OpenRouter (needs OPENROUTER_API_KEY); "none" uses the offline
+  # VADER lexicon + templated narrative (for testing without a key).
+  provider: openrouter
+  # Any OpenRouter model id with structured-output support works (see https://openrouter.ai/models).
+  scoring_model: deepseek/deepseek-v4.1-flash
+  scoring_reasoning: "off"        # off | low | medium | high  (classification needs no reasoning)
+  narrative_model: deepseek/deepseek-v4-pro
+  narrative_reasoning: low
+  texts_per_request: 20
+  concurrency: 8                  # parallel requests
+  # USD per 1M tokens: fallback for the cost log (OpenRouter normally reports the billed cost per call)
+  # and for `src estimate-costs` when the live price list can't be fetched. Checked 2026-09-28.
+  prices:
+    deepseek/deepseek-v4.1-flash: {input: 0.04, output: 0.29}
+    deepseek/deepseek-v4-flash: {input: 0.08, output: 0.16}
+    deepseek/deepseek-v4-pro: {input: 0.95, output: 1.90}
+    deepseek/deepseek-v3.2: {input: 0.28, output: 0.42}
+
+texts:
+  lookback_days: 30          # how far back text sources are pulled on the first run
+  max_per_asset_per_day: 40  # cap of new texts sent to the LLM per asset and run
+  backfill_cap: 120          # cap for an asset's first run (fills the 30-day history)
+  min_chars: 25
+  body_chars: 600
+
+sources:
+  google_news: true
+  yfinance_news: true
+  bluesky: true                   # public search API, no key needed
+  reddit_pool: auto               # auto = enabled when REDDIT_CLIENT_ID/SECRET are set
+  reddit_per_asset_search: auto   # auto = single-asset runs only (rate limits), needs Reddit keys
+  stocktwits: true                # best effort: the public API is often behind Cloudflare (403)
+  crypto_rss: true
+  finnhub: auto                   # auto = enabled when FINNHUB_API_KEY is set
+
+reddit:
+  stock_subs: [wallstreetbets, stocks, investing, StockMarket, options]
+  crypto_subs: [CryptoCurrency, CryptoMarkets, Bitcoin, ethereum, solana, altcoin]
+
+crypto_rss_feeds:
+  - https://www.coindesk.com/arc/outboundfeeds/rss/
+  - https://cointelegraph.com/rss
+  - https://decrypt.co/feed
+  - https://bitcoinmagazine.com/.rss/full/
+  - https://www.theblock.co/rss.xml
+  - https://thedefiant.io/api/feed
+  - https://cryptoslate.com/feed/
+  - https://beincrypto.com/feed/
+  - https://cryptopotato.com/feed/
+
+universe:
+  # The observed list = top N per index/market (by market cap) + config/watchlist.yaml.
+  observed:
+    crypto: 10
+    nasdaq100: 10
+    sp500: 10
+    distinct_stocks: true   # S&P picks skip companies already in the Nasdaq top list -> 30 distinct assets
+  crypto_top_n: 100
+  crypto_exclude_categories: [stablecoins, wrapped-tokens, liquid-staking-tokens, bridged-tokens]
+  crypto_exclude_symbols: [USDT, USDC, DAI, FDUSD, TUSD, USDE, USDS, PYUSD, USD1, BUIDL, USDD, FRAX, USDX,
+                           WBTC, WETH, STETH, WSTETH, WEETH, CBBTC, RETH, METH, BTCB, LBTC, SOLVBTC, CLBTC,
+                           JITOSOL, MSOL, BNSOL, EZETH, RSETH, SUSDE, SUSDS, XAUT, PAXG, BSC-USD, FIGR_HELOC]
+
+run:
+  workers: 6
+  stale_price_days: {stock: 5, crypto: 2}

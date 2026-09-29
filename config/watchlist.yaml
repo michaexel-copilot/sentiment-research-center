@@ -1,0 +1,4 @@
+# Extra assets observed in addition to the top lists (settings.yaml -> universe.observed).
+# Edit by hand or use:  uv run src watch add PLTR   /   uv run src watch add SUI --class crypto
+stocks: []
+crypto: []

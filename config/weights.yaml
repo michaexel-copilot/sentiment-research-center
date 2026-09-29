@@ -1,0 +1,35 @@
+# Sub-score weights (any scale; normalized over the sub-scores that are available) and signal thresholds.
+
+weights:
+  stock:
+    sentiment_level: 25
+    sentiment_momentum: 15
+    attention: 10
+    positioning: 15
+    trend: 20
+    fundamentals: 10
+    macro: 5
+  crypto:
+    sentiment_level: 25
+    sentiment_momentum: 15
+    attention: 10
+    positioning: 20
+    trend: 20
+    fundamentals: 5
+    macro: 5
+
+thresholds:
+  buy: 65
+  sell: 35
+  momentum_override_buy: 70     # BUY allowed below SMA200 only if momentum sub-score >= this
+  euphoria_z: 2.5               # sentiment z-score counted as euphoric
+  euphoria_level: 0.6           # fallback when no z-score history: raw sentiment level (-1..1)
+  crowded_positioning: 40       # positioning sub-score below this = crowded in the direction of the trade
+  divergence_near_high_pct: 3   # price within X% of 52w high
+  divergence_momentum_max: 35
+  divergence_positioning_max: 35
+  earnings_warning_days: 3
+
+gates:
+  min_relevant_texts_7d: {stock: 3, crypto: 3}
+  min_subscores: 4
