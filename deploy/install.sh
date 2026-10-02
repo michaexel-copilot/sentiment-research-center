@@ -31,7 +31,10 @@ die() { echo "install.sh: $*" >&2; exit 1; }
 step() { STEP=$1; printf '\n==> %s\n' "$1"; }
 on_exit() {
     local status=$?
-    [[ $status -ne 0 ]] && echo "install.sh: failed while ${STEP,} (exit status $status)." >&2
+    if [[ $status -ne 0 ]]; then
+        echo "install.sh: failed while ${STEP,} (exit status $status)." >&2
+    fi
+    return $status
 }
 trap on_exit EXIT
 
