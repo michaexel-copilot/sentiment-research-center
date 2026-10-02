@@ -9,6 +9,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ..timeutil import utcnow
+
 KIND_WEIGHT = {"news": 1.0, "social": 0.8}
 HALF_LIFE_DAYS = 3.0
 MIN_TEXTS = 3
@@ -59,7 +61,7 @@ def _rolling_levels(df: pd.DataFrame, now: pd.Timestamp, days: int = 90) -> list
 
 
 def compute(texts: pd.DataFrame, now: pd.Timestamp | None = None) -> dict[str, Any]:
-    now = now or pd.Timestamp.utcnow().tz_localize(None)
+    now = now or pd.Timestamp(utcnow())
     total = len(texts)
     scored = texts[texts["sentiment"].notna()] if total else texts
     df = prepare(scored, now) if len(scored) else scored
@@ -106,7 +108,7 @@ def compute(texts: pd.DataFrame, now: pd.Timestamp | None = None) -> dict[str, A
 
 def top_texts(texts: pd.DataFrame, n: int = 5, days: int = 7) -> dict[str, list[dict[str, Any]]]:
     """Most influential bullish and bearish texts of the last `days` days (for the report and the narrative)."""
-    now = pd.Timestamp.utcnow().tz_localize(None)
+    now = pd.Timestamp(utcnow())
     df = prepare(texts[texts["sentiment"].notna()], now) if len(texts) else texts
     if df.empty:
         return {"bullish": [], "bearish": []}

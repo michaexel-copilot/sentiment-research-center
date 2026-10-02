@@ -70,7 +70,7 @@ def build_facts(asset: Asset) -> tuple[dict[str, Any], pd.DataFrame, pd.DataFram
     else:
         facts["crypto_meta"] = db.load_snapshot(asset.key, "crypto_meta") or {}
         facts["derivatives"] = db.load_snapshot(asset.key, "derivatives") or {}
-    now = pd.Timestamp.utcnow().tz_localize(None)
+    now = pd.Timestamp(utcnow())
     prepared = sent_features.prepare(tx[tx["sentiment"].notna()], now) if len(tx) else tx
     daily = sent_features.daily_series(prepared) if len(prepared) else pd.DataFrame()
     return facts, px, tx, daily
