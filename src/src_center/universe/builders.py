@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from io import StringIO
 
 import pandas as pd
@@ -13,6 +12,7 @@ import pandas as pd
 from .. import config, http
 from ..models import Asset
 from ..storage import db
+from ..timeutil import utcnow
 
 log = logging.getLogger(__name__)
 
@@ -145,7 +145,7 @@ def refresh(which: list[str] | None = None) -> dict[str, int]:
         else:
             a.universes = kept
             merged[a.key] = a
-    now = datetime.utcnow()
+    now = utcnow()
     df = pd.DataFrame([{
         "key": a.key, "symbol": a.symbol, "name": a.name, "asset_class": a.asset_class,
         "coingecko_id": a.coingecko_id, "sector": a.sector, "universes": ",".join(a.universes),
@@ -180,7 +180,7 @@ def _market_caps(assets: list[Asset]) -> dict[str, float]:
         log.warning("market cap unavailable for %d stocks (%s...); using last known values",
                     len(missing), ", ".join(k.split(":")[1] for k in missing[:8]))
     fresh = {k: v for k, v in caps.items() if k not in missing}
-    db.save_snapshot("universe:stock", datetime.utcnow().date(), "market_caps", {**previous, **fresh})
+    db.save_snapshot("universe:stock", utcnow().date(), "market_caps", {**previous, **fresh})
     return caps
 
 
@@ -270,7 +270,7 @@ def resolve(symbol: str, asset_class: str | None = None) -> Asset:
     db.upsert_df("assets", pd.DataFrame([{
         "key": asset.key, "symbol": asset.symbol, "name": asset.name, "asset_class": asset.asset_class,
         "coingecko_id": asset.coingecko_id, "sector": asset.sector, "universes": "", "rank": asset.rank,
-        "updated_at": datetime.utcnow(),
+        "updated_at": utcnow(),
     }]))
     return asset
 

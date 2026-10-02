@@ -12,6 +12,7 @@ from .. import http
 from ..models import Asset
 from ..storage import db
 from ..universe.builders import COINGECKO, coingecko_headers, market_snapshot
+from ..timeutil import utcnow
 
 log = logging.getLogger(__name__)
 
@@ -106,7 +107,7 @@ def _reference_price(asset: Asset) -> float | None:
 
 def update_crypto(asset: Asset) -> int:
     last = _last_date(asset)
-    start = (last - timedelta(days=3)).to_pydatetime() if last is not None else datetime.utcnow() - timedelta(days=HISTORY_DAYS)
+    start = (last - timedelta(days=3)).to_pydatetime() if last is not None else utcnow() - timedelta(days=HISTORY_DAYS)
     df = pd.DataFrame()
     try:
         df = _binance_klines(asset.symbol, start)
@@ -119,7 +120,7 @@ def update_crypto(asset: Asset) -> int:
                     df["close"].iloc[-1], ref)
         df = pd.DataFrame()
     if asset.coingecko_id and (df.empty or (last is None and len(df) < 300)):
-        cg = _coingecko_chart(asset.coingecko_id, (datetime.utcnow() - start).days + 1)
+        cg = _coingecko_chart(asset.coingecko_id, (utcnow() - start).days + 1)
         # Recently listed on Binance: CoinGecko history before the first Binance candle, Binance OHLC after.
         df = cg if df.empty else pd.concat([cg[cg.index < df.index[0]], df])
     if df.empty:

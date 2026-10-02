@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 from .. import http
 from ..models import Asset
 from ..storage import db
 from ..universe.builders import COINGECKO, coingecko_headers
+from ..timeutil import utcnow
 
 log = logging.getLogger(__name__)
 
@@ -120,7 +121,7 @@ def update(asset: Asset) -> dict[str, Any]:
             meta.update(part(asset))
         except http.SourceUnavailable as exc:
             log.warning("%s failed for %s: %s", part.__name__, asset.symbol, exc)
-    meta["fetched_at"] = datetime.utcnow().isoformat()
+    meta["fetched_at"] = utcnow().isoformat()
     db.save_snapshot(asset.key, date.today(), "crypto_meta", meta)
     deriv = derivatives(asset)
     if deriv:

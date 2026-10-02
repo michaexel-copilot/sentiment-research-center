@@ -4,7 +4,7 @@ import json
 import os
 import re
 import subprocess
-from datetime import datetime, timedelta
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pandas as pd
@@ -14,6 +14,7 @@ from src_center.models import Asset
 from src_center.narrative import writer
 from src_center.nlp import llm, scorer
 from src_center.storage import db
+from src_center.timeutil import utcnow
 
 
 def _response(params, cost=0.0004, finish="stop", fenced=False):
@@ -47,7 +48,7 @@ class FakeClient:
 
 
 def _seed_texts(asset, n):
-    now = datetime.utcnow()
+    now = utcnow()
     db.upsert_df("texts", pd.DataFrame([{
         "text_id": f"{asset.symbol}{i}", "asset_key": asset.key, "source": "google_news", "kind": "news",
         "title": f"{asset.name} headline number {i}", "body": "", "url": f"https://x/{asset.symbol}/{i}",

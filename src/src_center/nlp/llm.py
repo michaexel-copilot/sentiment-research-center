@@ -20,7 +20,6 @@ import shutil
 import subprocess
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from functools import lru_cache
 from typing import Any
 
@@ -29,12 +28,13 @@ import pandas as pd
 
 from .. import config
 from ..storage import db
+from ..timeutil import utcnow
 
 log = logging.getLogger(__name__)
 
 BASE_URL = "https://openrouter.ai/api/v1"
 _client: openai.OpenAI | None = None
-RUN_ID = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
+RUN_ID = utcnow().strftime("%Y%m%dT%H%M%S")
 # Credentials that would make the CLI bill an API account instead of the subscription.
 API_CREDENTIAL_VARS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # no console pop-ups when started from the dashboard
@@ -111,7 +111,7 @@ def _cost(model: str, usage: Any) -> float:
 def _log_usage(stage: str, model: str, input_tokens: int, output_tokens: int, cache_read: int, cache_write: int,
                cost: float) -> None:
     db.upsert_df("llm_usage", pd.DataFrame([{
-        "ts": datetime.utcnow(), "run_id": RUN_ID, "stage": stage, "model": model, "batch": False,
+        "ts": utcnow(), "run_id": RUN_ID, "stage": stage, "model": model, "batch": False,
         "input_tokens": input_tokens, "output_tokens": output_tokens,
         "cache_read_tokens": cache_read, "cache_write_tokens": cache_write, "cost_usd": cost,
     }]))

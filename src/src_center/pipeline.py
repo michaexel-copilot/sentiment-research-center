@@ -8,7 +8,7 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 import pandas as pd
@@ -24,6 +24,7 @@ from .nlp import llm, scorer
 from .reports import charts, render
 from .scoring import signal as signal_engine
 from .storage import db
+from .timeutil import utcnow
 
 log = logging.getLogger(__name__)
 
@@ -90,7 +91,7 @@ def run(assets: list[Asset], scope: str, single_asset: bool = False, pdf: bool =
     day = date.today().isoformat()
     http.reset_breakers()
     db.execute("INSERT OR REPLACE INTO runs VALUES (?, ?, NULL, ?, 'running', ?, 0, NULL)",
-               [report.run_id, datetime.utcnow(), scope, len(assets)])
+               [report.run_id, utcnow(), scope, len(assets)])
 
     # 1. market context (once per asset class)
     if not skip_ingest:
@@ -165,7 +166,7 @@ def run(assets: list[Asset], scope: str, single_asset: bool = False, pdf: bool =
             a.key, date.today(), sig["signal"], sig["composite"], sig["confidence"], db.dumps(sig["subscores"]),
             db.dumps(sig["drivers"]), db.dumps(sig["flags"]), db.dumps({**facts, "signal": sig, "display": display,
                                                                          "top": top}),
-            db.dumps(narrative), datetime.utcnow()])
+            db.dumps(narrative), utcnow()])
         try:
             paths = render.render(a, day, {"facts": facts, "display": display, "signal": sig, "narrative": narrative,
                                            "top": top, "history": history(a), "chart_svg": charts_svg[a.key]},
@@ -181,7 +182,7 @@ def run(assets: list[Asset], scope: str, single_asset: bool = False, pdf: bool =
     report.cost_usd = float(cost.iloc[0]["c"])
     report.seconds = round(time.time() - t0, 1)
     db.execute("UPDATE runs SET finished_at = ?, status = ?, n_failed = ?, errors = ? WHERE run_id = ?",
-               [datetime.utcnow(), "ok" if not report.errors else "partial", len(report.errors),
+               [utcnow(), "ok" if not report.errors else "partial", len(report.errors),
                 json.dumps(report.errors), report.run_id])
     try:
         db.publish_snapshot()  # the dashboard reads this copy, never the live database

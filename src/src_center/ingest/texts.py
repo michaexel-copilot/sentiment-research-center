@@ -19,6 +19,7 @@ from ..models import Asset, TextItem
 from ..storage import db
 from . import stock_meta
 from .textmatch import filter_and_dedupe, mentions
+from ..timeutil import utcnow
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ def _strip_html(s: str) -> str:
 def _since(asset: Asset) -> datetime:
     """Incremental window: from the newest stored text (minus overlap) or the configured lookback."""
     df = db.query_df("SELECT max(published_at) AS m FROM texts WHERE asset_key = ?", [asset.key])
-    lookback = datetime.utcnow() - timedelta(days=config.settings()["texts"]["lookback_days"])
+    lookback = utcnow() - timedelta(days=config.settings()["texts"]["lookback_days"])
     last = df.iloc[0]["m"]
     if pd.isna(last):
         return lookback
@@ -44,7 +45,7 @@ def _since(asset: Asset) -> datetime:
 # --- per-asset sources ---------------------------------------------------------------------------
 
 def google_news(asset: Asset, since: datetime) -> list[TextItem]:
-    days = max(1, min(30, (datetime.utcnow() - since).days + 1))
+    days = max(1, min(30, (utcnow() - since).days + 1))
     q = f'"{asset.short_name}" stock' if asset.asset_class == "stock" else f'"{asset.short_name}" ({asset.symbol}) crypto'
     url = f"https://news.google.com/rss/search?q={quote_plus(q + f' when:{days}d')}&hl=en-US&gl=US&ceid=US:en"
     feed = feedparser.parse(http.get(url, as_json=False))
@@ -71,7 +72,7 @@ def finnhub_news(asset: Asset, since: datetime) -> list[TextItem]:
     if asset.asset_class != "stock":
         return []
     data = http.get("https://finnhub.io/api/v1/company-news", params={
-        "symbol": asset.symbol, "from": since.date().isoformat(), "to": datetime.utcnow().date().isoformat(),
+        "symbol": asset.symbol, "from": since.date().isoformat(), "to": utcnow().date().isoformat(),
         "token": config.env("FINNHUB_API_KEY")})
     return [TextItem(asset.key, "finnhub", "news", d.get("headline", ""), d.get("summary", ""), d.get("url", ""),
                      datetime.utcfromtimestamp(d["datetime"])) for d in data[:60] if d.get("datetime")]
@@ -156,7 +157,7 @@ _reddit_lock = Lock()
 def reddit_get(path: str, params: dict[str, Any]) -> dict[str, Any]:
     """Reddit API via application-only OAuth (free 'script' app; unauthenticated JSON is blocked)."""
     with _reddit_lock:
-        if not _reddit_token or _reddit_token["expires"] < datetime.utcnow():
+        if not _reddit_token or _reddit_token["expires"] < utcnow():
             resp = http.session().post(
                 "https://www.reddit.com/api/v1/access_token", data={"grant_type": "client_credentials"},
                 auth=(config.env("REDDIT_CLIENT_ID"), config.env("REDDIT_CLIENT_SECRET")), timeout=20)
@@ -164,7 +165,7 @@ def reddit_get(path: str, params: dict[str, Any]) -> dict[str, Any]:
                 raise http.SourceUnavailable(f"reddit token request failed: {resp.status_code} {resp.text[:120]}")
             tok = resp.json()
             _reddit_token.update(token=tok["access_token"],
-                                 expires=datetime.utcnow() + timedelta(seconds=int(tok.get("expires_in", 3600)) - 60))
+                                 expires=utcnow() + timedelta(seconds=int(tok.get("expires_in", 3600)) - 60))
         token = _reddit_token["token"]
     return http.get(f"https://oauth.reddit.com{path}", params={**params, "raw_json": 1},
                     headers={"Authorization": f"bearer {token}"})
@@ -213,7 +214,7 @@ class Pool:
 
         def load() -> list[TextItem]:
             items: list[TextItem] = []
-            since = datetime.utcnow() - timedelta(days=config.settings()["texts"]["lookback_days"])
+            since = utcnow() - timedelta(days=config.settings()["texts"]["lookback_days"])
             for sub in subs:
                 for listing in ("new", "hot", "top"):
                     params = {"limit": 100, **({"t": "week"} if listing == "top" else {})}
@@ -225,7 +226,7 @@ class Pool:
 
     def subreddit(self, sub: str) -> list[TextItem]:
         def load() -> list[TextItem]:
-            since = datetime.utcnow() - timedelta(days=config.settings()["texts"]["lookback_days"])
+            since = utcnow() - timedelta(days=config.settings()["texts"]["lookback_days"])
             items = []
             for listing in ("hot", "top"):
                 data = reddit_get(f"/r/{sub}/{listing}",
@@ -299,7 +300,7 @@ def collect(asset: Asset, pool: Pool, single_asset: bool = False, crypto_subredd
 
     tcfg = config.settings()["texts"]
     clean = filter_and_dedupe(items, tcfg["min_chars"], tcfg["body_chars"])
-    now = datetime.utcnow()
+    now = utcnow()
     df = pd.DataFrame([{
         "text_id": it.text_id, "asset_key": asset.key, "source": it.source, "kind": it.kind, "title": it.title,
         "body": it.body, "url": it.url, "published_at": it.published_at, "engagement": it.engagement,

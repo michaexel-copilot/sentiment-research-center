@@ -11,6 +11,7 @@ import pandas as pd
 
 from ..models import Asset
 from ..storage import db
+from ..timeutil import utcnow
 
 log = logging.getLogger(__name__)
 
@@ -154,7 +155,7 @@ def update(asset: Asset) -> dict[str, Any]:
     meta.update(_insiders(tk))
     meta.update(_earnings(tk))
     meta.update(_analyst_drift(tk))
-    meta["fetched_at"] = datetime.utcnow().isoformat()
+    meta["fetched_at"] = utcnow().isoformat()
     db.save_snapshot(asset.key, date.today(), "stock_meta", meta)
     return meta
 

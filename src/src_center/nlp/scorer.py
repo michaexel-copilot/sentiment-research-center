@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -15,6 +14,7 @@ from ..models import Asset
 from ..storage import db
 from . import llm
 from .schemas import SCORE_SCHEMA, normalize_score_item
+from ..timeutil import utcnow
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ def _custom_id(asset: Asset, chunk: int) -> str:
 
 def _store(asset_key: str, rows: pd.DataFrame, items: list[dict], model: str) -> int:
     by_id = {it["id"]: it for it in (normalize_score_item(x) for x in items)}
-    now = datetime.utcnow()
+    now = utcnow()
     records = []
     for i, (_, r) in enumerate(rows.iterrows(), start=1):
         it = by_id.get(i)

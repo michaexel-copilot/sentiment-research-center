@@ -6,6 +6,7 @@ from src_center.models import Asset, TextItem
 from src_center.narrative import writer
 from src_center.nlp import llm
 from src_center.nlp.schemas import normalize_score_item
+from src_center.timeutil import utcnow
 
 
 def test_mentions_handles_ambiguous_tickers():
@@ -84,7 +85,7 @@ def test_bluesky_relevance_filter():
 def test_unscored_texts_alternates_news_and_social():
     import pandas as pd
     from src_center.storage import db
-    now = datetime.utcnow()
+    now = utcnow()
     rows = [{"text_id": f"s{i}", "asset_key": "crypto:BTC", "source": "bluesky", "kind": "social", "title": "",
              "body": f"post {i}", "url": f"s{i}", "published_at": now, "engagement": float(100 - i),
              "author_label": None, "fetched_at": now} for i in range(30)]

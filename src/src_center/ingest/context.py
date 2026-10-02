@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 import pandas as pd
@@ -11,6 +11,7 @@ import pandas as pd
 from .. import http
 from ..storage import db
 from ..universe.builders import COINGECKO, coingecko_headers
+from ..timeutil import utcnow
 
 log = logging.getLogger(__name__)
 
@@ -94,7 +95,7 @@ def crypto_context() -> dict[str, Any]:
 def update(asset_class: str) -> dict[str, Any]:
     key = STOCK_KEY if asset_class == "stock" else CRYPTO_KEY
     ctx = stock_context() if asset_class == "stock" else crypto_context()
-    ctx["fetched_at"] = datetime.utcnow().isoformat()
+    ctx["fetched_at"] = utcnow().isoformat()
     db.save_snapshot(key, date.today(), "context", ctx)
     return ctx
 
