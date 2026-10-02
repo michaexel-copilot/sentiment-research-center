@@ -52,8 +52,8 @@ def test_llm_parse_guards():
 
 
 def test_structured_params_shape():
-    p = llm.structured_params("deepseek/deepseek-v4.1-flash", "off", "sys", "user", {"type": "object"}, "t",
-                              max_tokens=100)
+    p = llm.openrouter_kwargs(llm.structured_params("deepseek/deepseek-v4.1-flash", "off", "sys", "user",
+                                                    {"type": "object"}, "t", max_tokens=100))
     assert p["response_format"]["type"] == "json_schema"
     assert p["response_format"]["json_schema"] == {"name": "t", "strict": True, "schema": {"type": "object"}}
     assert p["messages"][0] == {"role": "system", "content": "sys"}

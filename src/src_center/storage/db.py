@@ -1,11 +1,15 @@
-"""DuckDB storage. One file (data/src.duckdb); all writes go through a process-wide lock."""
+"""DuckDB storage. One file (data/src.duckdb); all writes go through a process-wide lock.
+The dashboard reads a snapshot copy (data/src_dashboard.duckdb) published after each run."""
 
 from __future__ import annotations
 
 import json
+import os
 import threading
+import time
 from contextlib import contextmanager
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any, Iterable
 
 import duckdb
@@ -80,6 +84,39 @@ def connect(read_only: bool = False) -> duckdb.DuckDBPyConnection:
             _conn = duckdb.connect(str(config.path("db")))
             _conn.execute(SCHEMA)
         return _conn
+
+
+def snapshot_path() -> Path:
+    db_path = config.path("db")
+    return db_path.with_name(f"{db_path.stem}_dashboard{db_path.suffix}")
+
+
+def publish_snapshot(retries: int = 20) -> Path:
+    """Copy the database to the read-only snapshot the dashboard uses.
+
+    DuckDB on Windows lets no other process open the file while a writer has it open (not even read-only),
+    so the dashboard never reads the live database. Written to a temp file, then swapped in; the swap is
+    retried because a dashboard query may have the old snapshot open for a moment.
+    """
+    target = snapshot_path()
+    tmp = target.with_name(target.name + ".tmp")
+    tmp.unlink(missing_ok=True)
+    with _lock:
+        conn = connect()
+        conn.execute("CHECKPOINT")
+        source = conn.execute("SELECT current_database()").fetchone()[0]
+        conn.execute(f"ATTACH '{tmp.as_posix()}' AS dashboard_snapshot")
+        try:
+            conn.execute(f"COPY FROM DATABASE {source} TO dashboard_snapshot")
+        finally:
+            conn.execute("DETACH dashboard_snapshot")
+    for attempt in range(retries):
+        try:
+            os.replace(tmp, target)
+            return target
+        except PermissionError:
+            time.sleep(0.5)
+    raise RuntimeError(f"could not replace {target} (dashboard holding it open?); new snapshot left at {tmp}")
 
 
 def close() -> None:

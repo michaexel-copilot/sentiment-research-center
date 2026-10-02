@@ -7,10 +7,19 @@ paths:
   reports: reports
 
 llm:
-  # "openrouter" uses OpenRouter (needs OPENROUTER_API_KEY); "none" uses the offline
-  # VADER lexicon + templated narrative (for testing without a key).
-  provider: openrouter
-  # Any OpenRouter model id with structured-output support works (see https://openrouter.ai/models).
+  # "claude" uses your Claude subscription through the Claude Code CLI (install it and log in once with
+  # `claude auth login`; no API key). "openrouter" uses OpenRouter (needs OPENROUTER_API_KEY). "none" uses the
+  # offline VADER lexicon + templated narrative (for testing without an LLM).
+  provider: claude
+  # Settings for provider "claude"; they override the OpenRouter defaults below.
+  claude:
+    scoring_model: claude-opus-5-5   # claude-sonnet-5-5 or claude-haiku-4-5 stretch the subscription's usage limits
+    scoring_reasoning: low           # effort: low | medium | high ("off" maps to low)
+    narrative_model: claude-opus-5-5
+    narrative_reasoning: medium
+    concurrency: 4                   # parallel CLI processes
+    timeout: 300                     # seconds per request
+  # OpenRouter defaults. Any OpenRouter model id with structured-output support works (see https://openrouter.ai/models).
   scoring_model: deepseek/deepseek-v4.1-flash
   scoring_reasoning: "off"        # off | low | medium | high  (classification needs no reasoning)
   narrative_model: deepseek/deepseek-v4-pro

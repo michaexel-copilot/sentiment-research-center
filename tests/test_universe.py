@@ -46,3 +46,23 @@ def test_clean_name():
     assert builders._clean_name("Lilly (Eli)") == "Eli Lilly"
     assert builders._clean_name("Alphabet Inc. (Class A)") == "Alphabet Inc. (Class A)"
     assert Asset("GOOGL", "Alphabet Inc. (Class A)", "stock").short_name == "Alphabet"
+
+
+def test_publish_snapshot_readable_while_writer_open():
+    import duckdb
+    import pandas as pd
+    from src_center.storage import db
+    db.upsert_df("assets", pd.DataFrame([{"key": "stock:X", "symbol": "X", "name": "X Corp", "asset_class": "stock",
+                                          "coingecko_id": None, "sector": None, "universes": "", "rank": 1,
+                                          "updated_at": pd.Timestamp("2026-09-29")}]))
+    path = db.publish_snapshot()
+    assert path == db.snapshot_path() and path.exists()
+    # the writer connection is still open; the snapshot must be readable independently
+    con = duckdb.connect(str(path), read_only=True)
+    assert con.execute("SELECT symbol FROM assets").fetchall() == [("X",)]
+    con.close()
+    db.execute("UPDATE assets SET name = 'changed'")
+    db.publish_snapshot()  # republish replaces the file
+    con = duckdb.connect(str(path), read_only=True)
+    assert con.execute("SELECT name FROM assets").fetchone()[0] == "changed"
+    con.close()

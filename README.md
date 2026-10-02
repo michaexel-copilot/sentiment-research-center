@@ -1,6 +1,6 @@
 # Sentiment Research Center
 
-A pipeline for sentiment-driven research on any stock or crypto asset. For each asset it collects market, positioning and fundamental data plus news and social texts. An LLM (DeepSeek via OpenRouter by default) scores every text for sentiment. The pipeline then combines everything into sub-scores and a **BUY / HOLD (don't buy) / SELL** signal, and renders a one-page PDF, a detailed report and a dashboard.
+A pipeline for sentiment-driven research on any stock or crypto asset. For each asset it collects market, positioning and fundamental data plus news and social texts. An LLM (Claude via your Claude subscription by default, or any model on OpenRouter) scores every text for sentiment. The pipeline then combines everything into sub-scores and a **BUY / HOLD (don't buy) / SELL** signal, and renders a one-page PDF, a detailed report and a dashboard.
 
 The pipeline watches an **observed list of 30 assets**, plus anything you add yourself:
 - **Crypto:** the top 10 by market cap. Stablecoins, wrapped/staked tokens and tokenized treasuries are filtered out.
@@ -16,17 +16,18 @@ For the full installation and setup guide (requirements, API keys, first run, da
 ```powershell
 uv sync
 uv run playwright install chromium        # for PDF one-pagers
-copy .env.example .env                    # add OPENROUTER_API_KEY (+ optional free keys)
+claude auth login                         # once: log Claude Code in with your Claude subscription
+copy .env.example .env                    # optional free data-source keys
 uv run src universe                       # build index lists + rank by market cap -> observed top 10s
 uv run src watch list                     # the 30 observed assets (+ watchlist)
 uv run src watch add PLTR                 # add assets; `--class crypto` for coins, `watch remove X`
 uv run src run -u observed                # daily run of the observed list
 uv run src run -a NVDA -a BTC             # ad-hoc analysis of any ticker
-uv run src estimate-costs                 # LLM cost estimate from real prompt sizes + live OpenRouter prices
+uv run src estimate-costs                 # OpenRouter cost estimate (only relevant with llm.provider: openrouter)
 uv run src dashboard --address 127.0.0.1 # http://localhost:8501 (this PC only)
 ```
 
-Without an API key, add `--no-llm`. This uses VADER lexicon scoring and a templated narrative, which is fine for testing but much weaker on finance and crypto language.
+Without an LLM, add `--no-llm`. This uses VADER lexicon scoring and a templated narrative, which is fine for testing but much weaker on finance and crypto language.
 
 ## Pipeline
 
@@ -73,8 +74,11 @@ Every threshold lives in `config/weights.yaml`.
 
 ## LLM usage and cost
 
-- **Provider:** [OpenRouter](https://openrouter.ai), set as `llm.provider` in `config/settings.yaml`. It needs `OPENROUTER_API_KEY` in `.env`.
-- **Models:**
+- **Provider:** set as `llm.provider` in `config/settings.yaml`.
+  - `claude` (default): your Claude subscription. Each request runs the [Claude Code](https://claude.com/claude-code) CLI headless (`claude -p` with a JSON schema, no tools, no project settings). Install the CLI and log in once with `claude auth login`; no API key is needed and calls cost nothing extra, but they count against the subscription's usage limits. `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN` are removed from the CLI's environment so it never bills an API account instead.
+  - Models and effort are under `llm.claude` (default `claude-opus-5-5`, effort `low` for scoring and `medium` for narratives, 4 parallel requests). Use `claude-sonnet-5-5` or `claude-haiku-4-5` to stretch the usage limits.
+  - `openrouter`: [OpenRouter](https://openrouter.ai), needs `OPENROUTER_API_KEY` in `.env`. The rest of this section describes this provider.
+- **OpenRouter models:**
   - Scoring uses `deepseek/deepseek-v4.1-flash` with reasoning off. It is a high-volume classification task.
   - Narratives use `deepseek/deepseek-v4-pro` with low reasoning, one call per asset.
   - Any OpenRouter model with structured-output support can replace either one.
@@ -92,7 +96,7 @@ Every threshold lives in `config/weights.yaml`.
   | v3.2 / v3.2 | $0.07–0.10 | ~$1.70–2.40 | ~$2.60–3.30 |
 
   The first run's backfill adds under $0.10 with the default models.
-- **Actual spend:** OpenRouter reports the billed cost of every call. It is logged, and you can see it with `uv run src costs` or on the dashboard's LLM cost tab.
+- **Actual spend:** OpenRouter reports the billed cost of every call (Claude subscription calls are logged with their tokens at $0). It is logged, and you can see it with `uv run src costs` or on the dashboard's LLM cost tab.
 
 ## Scheduling
 

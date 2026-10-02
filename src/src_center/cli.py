@@ -32,6 +32,8 @@ def universe(which: list[str] = typer.Argument(None, help="sp500 nasdaq100 crypt
     _setup(False, False)
     from .universe import builders
     counts = builders.refresh(which or None)
+    from .storage import db
+    db.publish_snapshot()
     typer.echo(json.dumps(counts))
 
 
@@ -130,6 +132,9 @@ def estimate_costs(
         typer.echo(f"Universe '{universe_name}' is empty. Run `src universe` first.", err=True)
         raise typer.Exit(1)
     lcfg = config.settings()["llm"]
+    if config.llm_provider() == "claude":
+        typer.echo("llm.provider is 'claude': calls run on your Claude subscription and cost nothing per call. "
+                   "The estimates below are for switching to OpenRouter.\n")
     live = costs.live_prices()
     daily = costs.per_asset_tokens(assets, cap_texts=cap)
     backfill = costs.per_asset_tokens(assets, cap_texts=config.settings()["texts"]["backfill_cap"], clamp=False)

@@ -10,7 +10,7 @@ This guide takes you from an empty machine to a daily-updating dashboard. The co
 | [uv](https://docs.astral.sh/uv/) | Python package and environment manager. It installs Python 3.12 by itself, so no separate Python install is needed |
 | Internet access | All data sources are free web APIs and feeds |
 | ~1 GB free disk space | Python environment, Chromium for PDFs, and the database, which grows slowly |
-| An [OpenRouter](https://openrouter.ai) account with a few dollars of credit | Needed for LLM scoring (DeepSeek). The default setup costs about $4–6/month for 30 assets |
+| A Claude subscription (Pro or Max) and [Claude Code](https://claude.com/claude-code) | Needed for LLM scoring and narratives. Log in once with `claude auth login`. Alternatively an [OpenRouter](https://openrouter.ai) account with a few dollars of credit (`llm.provider: openrouter`, about $4–6/month for 30 assets) |
 
 Install uv if you don't have it (any one of these):
 
@@ -44,7 +44,7 @@ notepad .env
 
 | Variable | Needed? | What for | Where to get it |
 |---|---|---|---|
-| `OPENROUTER_API_KEY` | **Required** for real signals | LLM text scoring and narratives (DeepSeek) | [openrouter.ai/keys](https://openrouter.ai/keys). Add credit at [openrouter.ai/settings/credits](https://openrouter.ai/settings/credits); $5 lasts about a month |
+| `OPENROUTER_API_KEY` | Only with `llm.provider: openrouter` | LLM text scoring and narratives (DeepSeek). The default provider `claude` uses your logged-in Claude Code instead | [openrouter.ai/keys](https://openrouter.ai/keys). Add credit at [openrouter.ai/settings/credits](https://openrouter.ai/settings/credits); $5 lasts about a month |
 | `FINNHUB_API_KEY` | Recommended | Company news for stocks (adds ~60 articles per stock) | Free at [finnhub.io/register](https://finnhub.io/register) |
 | `COINGECKO_DEMO_API_KEY` | Recommended | Crypto prices and metadata. Without it, requests are throttled to ~10/min | Free "Demo" key at [coingecko.com/en/developers/dashboard](https://www.coingecko.com/en/developers/dashboard) |
 | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | Optional | Reddit posts. Access requires Reddit's approval under its Responsible Builder Policy | [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) once approved (type "script", redirect URI `http://localhost:8080`) |
@@ -54,7 +54,7 @@ Sources whose keys are missing switch off automatically. Bluesky, Google News, Y
 
 `.env` is excluded from git (`.gitignore`), so keys never end up in the repository.
 
-**No key yet?** Add `--no-llm` to any `run` command. Scoring then uses the offline VADER word-list and a templated summary. That's good for trying the pipeline out, but the signals are unreliable (VADER reads most finance headlines as positive).
+**No LLM yet?** Add `--no-llm` to any `run` command. Scoring then uses the offline VADER word-list and a templated summary. That's good for trying the pipeline out, but the signals are unreliable (VADER reads most finance headlines as positive).
 
 ## 4. Build the asset lists
 
@@ -76,11 +76,11 @@ The list sizes are set in `config/settings.yaml` → `universe.observed`, and ex
 ## 5. First run
 
 ```powershell
-uv run src estimate-costs        # optional: expected LLM cost, using live OpenRouter prices
+uv run src estimate-costs        # optional: expected cost if you use OpenRouter instead of the subscription
 uv run src run -u observed       # the full pipeline for all observed assets
 ```
 
-The first run backfills 30 days of texts, about 3,600 texts for 30 assets. It takes about 5–10 minutes and costs roughly $0.30. Later daily runs are faster and cheaper.
+The first run backfills 30 days of texts, about 3,600 texts for 30 assets. It takes about 5–10 minutes (roughly $0.30 on OpenRouter; included in a Claude subscription). Later daily runs are faster and cheaper.
 
 Other ways to run:
 
@@ -123,12 +123,16 @@ Run it in its own terminal window and leave that window open. If you start it fr
 | **Signal changes** | Assets whose signal differs from their previous run |
 | **Asset** | The one-pager of the selected asset, PDF and Markdown downloads, composite-score history, and all scored texts with links |
 | **Market** | Market context: CNN and crypto Fear & Greed, VIX, 10Y yield, BTC dominance, stablecoin supply |
-| **LLM costs** | Actual OpenRouter spend per day and stage, as billed |
+| **LLM costs** | LLM tokens and actual OpenRouter spend per day and stage (Claude subscription calls show $0) |
 | **Analyze ticker** | Run the pipeline for any tickers from the browser (20–90 s per ticker) |
 
-### While a pipeline run is active
+### Where the data comes from
 
-A running pipeline locks the database. During that time the dashboard may show *"Database busy"* or the previous results. Reload the page (F5) once the run has finished.
+The dashboard reads a snapshot of the database (`data\src_dashboard.duckdb`). The pipeline publishes it at the end of every run and after `src universe`. On Windows, DuckDB lets no other process open the database while a run writes to it, so the dashboard never touches the live file. This means:
+
+- The dashboard works at any time, including during a run, and it never blocks a run.
+- It shows the last *completed* run. The time is shown under the title. Reload the page (F5) after a run to see the new results.
+- Right after installation, before the first run has finished, the dashboard has no data and says so.
 
 ## 7. Daily runs (Windows Task Scheduler)
 
@@ -160,7 +164,7 @@ The dashboard is not part of the schedule. Start it whenever you want to look at
 | `config/watchlist.yaml` | Extra observed assets (or use `src watch add/remove`) |
 | `.env` | API keys |
 
-Any OpenRouter model with structured-output support can replace the DeepSeek defaults (`llm.scoring_model`, `llm.narrative_model`). `uv run src estimate-costs` shows what a switch would cost.
+With the default provider `claude`, models and effort live under `llm.claude` (e.g. `claude-sonnet-5-5` to use less of the subscription's usage limits). With `llm.provider: openrouter`, any OpenRouter model with structured-output support can replace the DeepSeek defaults (`llm.scoring_model`, `llm.narrative_model`); `uv run src estimate-costs` shows what a switch would cost.
 
 ## 9. Maintenance
 
@@ -175,7 +179,9 @@ Any OpenRouter model with structured-output support can replace the DeepSeek def
 
 | Symptom | Cause and fix |
 |---|---|
-| `OPENROUTER_API_KEY is not set` | Add the key to `.env`, or run with `--no-llm` |
+| `Claude Code CLI not found` / `Claude Code is not logged in` | Install Claude Code and run `claude auth login` with your subscription account, or run with `--no-llm` |
+| Many `request ... failed` lines with `llm.provider: claude` | The subscription's usage limit is reached. Wait for it to reset, lower `llm.claude.concurrency`, or switch `llm.claude` models to `claude-sonnet-5-5` |
+| `OPENROUTER_API_KEY is not set` | Add the key to `.env` (only with `llm.provider: openrouter`), or run with `--no-llm` |
 | `failed (402)` in the run log | OpenRouter credit is used up. Top up at openrouter.ai/settings/credits |
 | `failed to remove file ... src.exe: Access denied` during `uv sync` | The dashboard or a pipeline run is still using the environment. Stop it (Ctrl+C) and retry |
 | `Too Many Requests. Rate limited` for stocks | Yahoo throttles bursts. Runs retry automatically after 15/45/90 s. If stocks still fail, run again later |
@@ -183,6 +189,7 @@ Any OpenRouter model with structured-output support can replace the DeepSeek def
 | CoinGecko `429` errors | Add the free `COINGECKO_DEMO_API_KEY` |
 | `stocktwits failed ... 403` | Normal: StockTwits blocks automated access, so the source switches itself off for the run |
 | One-pager PDF missing, "PDF rendering failed" | Run `uv run playwright install chromium` |
-| Dashboard shows "Database busy" | A pipeline run is writing. Reload after it finishes |
+| Dashboard is empty or shows old results | It shows the last completed run. Reload (F5) after the run finishes. If there's still nothing, run `uv run src run -u observed` once |
+| Other `src` commands (`costs`, `evaluate`, `watch list`) fail with "Cannot open file ... used by another process" | A pipeline run is writing to the database. Wait until it finishes |
 | Dashboard closes right after starting | Start it with `uv run src dashboard` (this skips Streamlit's first-launch email prompt) and keep the terminal open |
 | A few `requests failed` warnings after scoring | Occasional provider errors. Those texts stay unscored and are picked up by the next run |

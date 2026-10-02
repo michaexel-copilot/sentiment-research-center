@@ -1,4 +1,4 @@
-"""One-pager narrative: LLM via OpenRouter (structured output, grounded in the fact sheet) or a templated fallback."""
+"""One-pager narrative: LLM (structured output, grounded in the fact sheet) or a templated fallback."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def build_prompt(asset: Asset, display: dict, signal: dict, top: dict) -> str:
 
 
 def request_params(asset: Asset, display: dict, signal: dict, top: dict) -> dict[str, Any]:
-    lcfg = config.settings()["llm"]
+    lcfg = config.llm()
     return llm.structured_params(lcfg["narrative_model"], lcfg["narrative_reasoning"],
                                  PROMPT_PATH.read_text(encoding="utf-8"), build_prompt(asset, display, signal, top),
                                  NARRATIVE_SCHEMA, "narrative", max_tokens=16000)
@@ -107,8 +107,7 @@ def write_many(jobs: list[tuple[Asset, dict, dict, dict, dict]]) -> dict[str, di
             log.warning("narrative failed for %s; using template", asset.symbol)
             out[asset.key] = template(asset, sig, facts, top)
             continue
-        narrative["source"] = config.settings()["llm"]["narrative_model"]
-        narrative["unverified_numbers"] = unverified_numbers(
-            narrative, requests[cid]["messages"][0]["content"])
+        narrative["source"] = config.llm()["narrative_model"]
+        narrative["unverified_numbers"] = unverified_numbers(narrative, requests[cid]["user"])
         out[asset.key] = narrative
     return out

@@ -73,3 +73,10 @@ def llm_provider() -> str:
     if os.environ.get("SRC_LLM_PROVIDER"):
         provider = os.environ["SRC_LLM_PROVIDER"]
     return provider
+
+
+def llm() -> dict[str, Any]:
+    """LLM settings with the active provider's block (e.g. `llm.claude`) laid over the top-level defaults."""
+    cfg = settings()["llm"]
+    override = cfg.get(llm_provider())
+    return {**cfg, **override} if isinstance(override, dict) else cfg

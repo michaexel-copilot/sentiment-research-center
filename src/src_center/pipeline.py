@@ -134,7 +134,7 @@ def run(assets: list[Asset], scope: str, single_asset: bool = False, pdf: bool =
     except Exception as exc:  # noqa: BLE001
         log.error("scoring failed: %s", exc)
         report.errors["scoring"] = str(exc)
-        if isinstance(exc, RuntimeError) and "OPENROUTER_API_KEY" in str(exc):
+        if isinstance(exc, llm.LLMSetupError):
             raise
 
     # 4. features + signal
@@ -183,4 +183,8 @@ def run(assets: list[Asset], scope: str, single_asset: bool = False, pdf: bool =
     db.execute("UPDATE runs SET finished_at = ?, status = ?, n_failed = ?, errors = ? WHERE run_id = ?",
                [datetime.utcnow(), "ok" if not report.errors else "partial", len(report.errors),
                 json.dumps(report.errors), report.run_id])
+    try:
+        db.publish_snapshot()  # the dashboard reads this copy, never the live database
+    except Exception as exc:  # noqa: BLE001 - the run's results are stored either way
+        log.error("dashboard snapshot not updated: %s", exc)
     return report

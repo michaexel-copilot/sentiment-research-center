@@ -1,4 +1,4 @@
-"""Text sentiment scoring: LLM via OpenRouter (structured outputs, ~20 texts per request) or the offline VADER fallback."""
+"""Text sentiment scoring: LLM (structured outputs, ~20 texts per request) or the offline VADER fallback."""
 
 from __future__ import annotations
 
@@ -78,7 +78,7 @@ def score_vader(assets: list[Asset], pending: pd.DataFrame) -> int:
 
 
 def score_llm(assets: list[Asset], pending: pd.DataFrame) -> int:
-    lcfg = config.settings()["llm"]
+    lcfg = config.llm()
     per_request = lcfg["texts_per_request"]
     system = _system_prompt()
     requests: dict[str, dict] = {}

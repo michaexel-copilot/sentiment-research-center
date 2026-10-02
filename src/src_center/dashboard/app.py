@@ -8,6 +8,8 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import time
+from datetime import datetime
 from pathlib import Path
 
 import duckdb
@@ -17,25 +19,56 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from src_center import config
+from src_center.nlp import llm
+from src_center.storage import db
 
 st.set_page_config(page_title="Sentiment Research Center", layout="wide")
 
 SIGNAL_COLORS = {"BUY": "#15803d", "HOLD": "#b45309", "SELL": "#b91c1c", "NO SIGNAL": "#6b7280"}
 
 
-@st.cache_data(ttl=60)
-def q(sql: str, params: tuple = ()) -> pd.DataFrame:
-    try:
-        con = duckdb.connect(str(config.path("db")), read_only=True)
-    except duckdb.Error as exc:
-        st.warning(f"Database busy (a pipeline run is writing?): {exc}")
-        return pd.DataFrame()
+class DataUnavailable(Exception):
+    pass
+
+
+def data_path() -> Path:
+    """The snapshot each pipeline run publishes. The live database is only a fallback before the first
+    snapshot exists: on Windows it can't be opened at all while a pipeline run is writing to it."""
+    snapshot = db.snapshot_path()
+    return snapshot if snapshot.exists() else config.path("db")
+
+
+@st.cache_data(ttl=300)
+def _query(sql: str, params: tuple, path: str, version: float) -> pd.DataFrame:
+    # `version` (the file's mtime) is part of the cache key, so a newly published snapshot is read at once.
+    for _ in range(10):  # the snapshot is swapped atomically; retry if we hit that instant
+        try:
+            con = duckdb.connect(path, read_only=True)
+            break
+        except duckdb.IOException:
+            time.sleep(0.3)
+    else:
+        raise DataUnavailable(path)
     try:
         return con.execute(sql, list(params)).df()
     except duckdb.CatalogException:
         return pd.DataFrame()
     finally:
         con.close()
+
+
+def q(sql: str, params: tuple = ()) -> pd.DataFrame:
+    path = data_path()
+    if not path.exists():
+        return pd.DataFrame()
+    try:
+        return _query(sql, params, str(path), path.stat().st_mtime)
+    except DataUnavailable:
+        if not st.session_state.get("_unavailable_shown"):
+            st.session_state["_unavailable_shown"] = True
+            st.info("No dashboard data yet: the first pipeline run is still writing. The dashboard reads a "
+                    "snapshot that each run publishes when it finishes; reload the page after the run.")
+        return pd.DataFrame()
 
 
 def latest_signals() -> pd.DataFrame:
@@ -62,6 +95,9 @@ def signal_badge(sig: str) -> str:
 
 
 st.title("Sentiment Research Center")
+if db.snapshot_path().exists():
+    stamp = datetime.fromtimestamp(db.snapshot_path().stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+    st.caption(f"Data as of the last completed run: {stamp}. Reload (F5) after a run to see new results.")
 sig_df = latest_signals()
 
 tab_screen, tab_changes, tab_asset, tab_market, tab_costs, tab_run = st.tabs(
@@ -180,7 +216,7 @@ with tab_run:
     st.write("Run the full pipeline for one or more tickers (stocks or crypto).")
     tickers = st.text_input("Tickers (space separated)", placeholder="NVDA BTC")
     c1, c2 = st.columns(2)
-    no_llm = c1.checkbox("Offline mode (no LLM)", value=not config.env("OPENROUTER_API_KEY"))
+    no_llm = c1.checkbox("Offline mode (no LLM)", value=not llm.available())
     forced = c2.selectbox("Class", ["auto", "stock", "crypto"])
     if st.button("Analyze", type="primary", disabled=not tickers.strip()):
         cmd = [sys.executable, "-m", "src_center.cli", "run"]

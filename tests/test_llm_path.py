@@ -1,8 +1,9 @@
-"""Exercises the OpenRouter scoring + narrative plumbing against a fake OpenAI-compatible client, without network."""
+"""Exercises the scoring + narrative plumbing against a fake OpenRouter client and a fake Claude Code CLI, without network."""
 
 import json
 import os
 import re
+import subprocess
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
@@ -78,7 +79,8 @@ def test_scoring(monkeypatch):
 
 
 def test_fenced_json_and_truncation(monkeypatch):
-    params = llm.structured_params("m", "low", "sys", '<text id="1">x</text>', {"type": "object"}, "t")
+    params = llm.openrouter_kwargs(
+        llm.structured_params("m", "low", "sys", '<text id="1">x</text>', {"type": "object"}, "t"))
     assert llm._parse(_response(params, fenced=True), "x")["items"][0]["id"] == 1
     assert llm._parse(_response(params, finish="length"), "x") is None
     assert params["extra_body"]["reasoning"] == {"effort": "low", "exclude": True}
@@ -104,11 +106,86 @@ def test_narrative_flags_unverified_numbers(monkeypatch):
 
 
 def test_missing_key_fails_fast(monkeypatch):
+    monkeypatch.setenv("SRC_LLM_PROVIDER", "openrouter")
     monkeypatch.setattr(llm, "_client", None)
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     try:
         llm.run({"a": {"model": "m"}}, "score")
-    except RuntimeError as exc:
+    except llm.LLMSetupError as exc:
         assert "OPENROUTER_API_KEY" in str(exc)
     else:
         raise AssertionError("expected RuntimeError")
+
+
+class FakeCLI:
+    """Stands in for `claude -p --output-format json --json-schema ...`."""
+
+    def __init__(self, error=None):
+        self.calls = []
+        self.error = error
+
+    def __call__(self, cmd, input=None, env=None, **kw):
+        self.calls.append({"cmd": cmd, "input": input, "env": env})
+        if self.error:
+            out = {"type": "result", "subtype": "success", "is_error": True, "result": self.error,
+                   "api_error_status": 429}
+        else:
+            payload = json.loads(_response({"messages": [None, {"content": input}]}).choices[0].message.content)
+            out = {"type": "result", "subtype": "success", "is_error": False, "stop_reason": "end_turn",
+                   "result": json.dumps(payload), "structured_output": payload, "total_cost_usd": 0.01,
+                   "usage": {"input_tokens": 1000, "output_tokens": 200, "cache_read_input_tokens": 100,
+                             "cache_creation_input_tokens": 50}}
+        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(out), stderr="")
+
+
+def _use_claude(monkeypatch, cli):
+    monkeypatch.setenv("SRC_LLM_PROVIDER", "claude")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-should-not-be-used")
+    monkeypatch.setattr(llm, "check_claude", lambda: None)
+    monkeypatch.setattr(llm, "claude_cli", lambda: "claude")
+    monkeypatch.setattr(llm.subprocess, "run", cli)
+
+
+def test_scoring_with_claude_subscription(monkeypatch):
+    cli = FakeCLI()
+    _use_claude(monkeypatch, cli)
+    asset = Asset("NVDA", "NVIDIA Corporation", "stock")
+    _seed_texts(asset, 25)
+    assert scorer.score([asset]) == 25
+    scores = db.query_df("SELECT * FROM text_scores")
+    usage = db.query_df("SELECT * FROM llm_usage")
+    claude_cfg = config.settings()["llm"]["claude"]
+    assert set(scores["model"]) == {claude_cfg["scoring_model"]}
+    assert len(usage) == 2 and usage["cost_usd"].sum() == 0  # covered by the subscription
+    assert usage["cache_read_tokens"].sum() == 200 and usage["cache_write_tokens"].sum() == 100
+    call = cli.calls[0]
+    cmd = call["cmd"]
+    assert cmd[cmd.index("--model") + 1] == claude_cfg["scoring_model"]
+    assert json.loads(cmd[cmd.index("--json-schema") + 1])["type"] == "object"
+    assert cmd[cmd.index("--tools") + 1] == ""
+    assert '<text id="1">' in call["input"]
+    assert "ANTHROPIC_API_KEY" not in call["env"]  # never bill an API key instead of the subscription
+
+
+def test_claude_effort_mapping():
+    params = llm.structured_params("claude-opus-5-5", "off", "sys", "user", {"type": "object"}, "t")
+    cmd = llm.claude_command(params)
+    assert cmd[cmd.index("--effort") + 1] == "low"
+
+
+def test_claude_errors_are_dropped(monkeypatch):
+    _use_claude(monkeypatch, FakeCLI(error="usage limit reached"))
+    params = llm.structured_params("claude-opus-5-5", "low", "sys", "user", {"type": "object"}, "t")
+    assert llm.run({"a": params}, "score") == {}
+
+
+def test_claude_missing_cli_fails_fast(monkeypatch):
+    monkeypatch.setenv("SRC_LLM_PROVIDER", "claude")
+    monkeypatch.setattr(llm, "claude_cli", lambda: None)
+    llm.check_claude.cache_clear()
+    try:
+        llm.run({"a": {"model": "m"}}, "score")
+    except llm.LLMSetupError as exc:
+        assert "Claude Code CLI not found" in str(exc)
+    else:
+        raise AssertionError("expected LLMSetupError")
