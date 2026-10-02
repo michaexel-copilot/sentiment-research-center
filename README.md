@@ -11,7 +11,7 @@ The sizes are set in `settings.yaml` under `universe.observed`. With `distinct_s
 
 ## Quick start
 
-For the full installation and setup guide (requirements, API keys, first run, dashboard, scheduling, troubleshooting), see **[docs/SETUP.md](docs/SETUP.md)**.
+For the full installation and setup guide (requirements, API keys, first run, dashboard, scheduling, troubleshooting), see **[docs/SETUP.md](docs/SETUP.md)**. The server deployment on Proxmox (container 108), and the commit → deploy → push workflow, are described in **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 
 ```powershell
 uv sync

@@ -1,0 +1,4 @@
+# Shell scripts and systemd units run on Linux; keep them LF even with core.autocrlf=true.
+*.sh text eol=lf
+deploy/** text eol=lf
+.githooks/* text eol=lf

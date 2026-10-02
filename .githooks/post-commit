@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# After every commit on main: deploy it to the Proxmox container, then push it to GitHub.
+# A failed deploy leaves the commit local and unpushed. Enabled with `git config core.hooksPath .githooks`;
+# skip once with SRC_SKIP_DEPLOY=1 git commit ... See docs/DEPLOYMENT.md.
+
+[[ ${SRC_SKIP_DEPLOY:-} == 1 ]] && exit 0
+git_dir=$(git rev-parse --git-dir)
+# Not in the middle of a rebase, cherry-pick sequence or merge resolution.
+if [[ -d $git_dir/rebase-merge || -d $git_dir/rebase-apply || -f $git_dir/sequencer/todo ]]; then
+    exit 0
+fi
+[[ $(git rev-parse --abbrev-ref HEAD) == main ]] || exit 0
+
+if scripts/deploy.sh; then
+    echo "==> Deployed; pushing"
+    git push origin main
+else
+    echo >&2
+    echo "post-commit: deploy failed, so the commit was NOT pushed. Fix it, then run: scripts/deploy.sh && git push" >&2
+fi

@@ -1,0 +1,10 @@
+# Schedule for sentiment-research-center-universe.service (same times as scripts/register_tasks.ps1 on Windows).
+[Unit]
+Description=Sentiment Research Center: weekly asset-list refresh (schedule)
+
+[Timer]
+OnCalendar=Sun *-*-* 12:00:00 Europe/Berlin
+Persistent=true
+
+[Install]
+WantedBy=timers.target

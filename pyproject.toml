@@ -39,9 +39,5 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/src_center"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"src/src_center/nlp/prompts" = "src_center/nlp/prompts"
-"src/src_center/reports/templates" = "src_center/reports/templates"
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]

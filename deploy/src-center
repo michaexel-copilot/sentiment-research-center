@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Run the `src` CLI as the service user with the deployed environment, e.g.
+#
+#   src-center watch list
+#   src-center run -a NVDA
+#   src-center claude auth login     # runs Claude Code itself (log in with your Claude subscription)
+#
+# Installed to /usr/local/bin by deploy/install.sh. See docs/DEPLOYMENT.md.
+set -euo pipefail
+
+APP=sentiment-research-center
+STATE_DIR=/var/lib/$APP
+VENV_DIR=/opt/$APP/venv
+
+cmd=("$VENV_DIR/bin/src" "$@")
+[[ ${1:-} == claude ]] && cmd=("$STATE_DIR/.local/bin/claude" "${@:2}")
+
+envs=(HOME="$STATE_DIR" SRC_HOME="$STATE_DIR" PLAYWRIGHT_BROWSERS_PATH="/opt/$APP/browsers"
+      PATH="$STATE_DIR/.local/bin:$VENV_DIR/bin:/usr/local/bin:/usr/bin:/bin")
+cd "$STATE_DIR"
+if [[ $(id -un) == srcenter ]]; then
+    exec env "${envs[@]}" "${cmd[@]}"
+fi
+exec runuser -u srcenter -- env "${envs[@]}" "${cmd[@]}"

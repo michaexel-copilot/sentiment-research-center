@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ asset.symbol }} one-pager {{ day }}</title>
+<style>
+  :root {
+    --ink: #111827; --muted: #6b7280; --line: #e5e7eb; --bg: #ffffff; --panel: #f9fafb;
+    --buy: #15803d; --hold: #b45309; --sell: #b91c1c; --none: #6b7280; --accent: #1d4ed8;
+  }
+  @page { size: A4; margin: 10mm 11mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 9.2pt/1.38 "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+  .page { max-width: 190mm; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid var(--ink); padding-bottom: 6px; }
+  h1 { font-size: 18pt; margin: 0; letter-spacing: -0.01em; }
+  h1 small { font-size: 10pt; color: var(--muted); font-weight: 500; margin-left: 6px; }
+  .sub { color: var(--muted); font-size: 8.4pt; margin-top: 2px; }
+  .px { font-size: 13pt; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .px span { font-size: 9pt; font-weight: 500; margin-left: 8px; }
+  .up { color: var(--buy); } .down { color: var(--sell); }
+  .badge { text-align: center; min-width: 46mm; }
+  .signal { display: inline-block; color: #fff; font-weight: 800; font-size: 17pt; letter-spacing: 0.04em; padding: 6px 16px; border-radius: 6px; }
+  .signal.BUY { background: var(--buy); } .signal.HOLD { background: var(--hold); } .signal.SELL { background: var(--sell); } .signal.NO { background: var(--none); font-size: 12pt; }
+  .signal-note { font-size: 8pt; color: var(--muted); margin-top: 3px; }
+  .score { font-size: 8.6pt; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .headline { font-size: 11.5pt; font-weight: 600; margin: 8px 0 4px; }
+  .thesis { margin: 0 0 6px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; }
+  h2 { font-size: 8.4pt; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 4px; }
+  ul { margin: 0; padding-left: 14px; } li { margin: 1px 0; }
+  .bars .row { display: grid; grid-template-columns: 34mm 1fr 9mm; align-items: center; gap: 6px; margin: 2px 0; font-size: 8.4pt; }
+  .track { height: 7px; background: var(--line); border-radius: 4px; position: relative; overflow: hidden; }
+  .track .mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #9ca3af; }
+  .fill { height: 100%; border-radius: 4px; }
+  .val { text-align: right; font-variant-numeric: tabular-nums; }
+  table.facts { width: 100%; border-collapse: collapse; font-size: 8.2pt; }
+  table.facts td { padding: 1.5px 0; border-bottom: 1px dotted var(--line); }
+  table.facts td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
+  .chart svg { width: 100%; height: auto; display: block; }
+  .flags { border-left: 3px solid var(--hold); background: #fffbeb; padding: 4px 8px; margin: 6px 0; font-size: 8.4pt; }
+  .drivers li { font-size: 8.4pt; }
+  footer { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 4px; font-size: 7.2pt; color: var(--muted); }
+  .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 14px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div>
+      <h1>{{ asset.name }}<small>{{ asset.symbol }} · {{ "Crypto" if asset.asset_class == "crypto" else (asset.sector or "Stock") }}</small></h1>
+      <div class="sub">Sentiment Research Center · {{ day }} · data as of {{ facts.technical.price_date or "n/a" }}</div>
+      <div class="px">{{ display.Price.Price or "n/a" }}
+        {% for label in ["Change 1d", "Change 7d", "Change 30d"] %}{% if display.Price[label] %}
+        <span class="{{ 'up' if display.Price[label].startswith('+') else 'down' }}">{{ label.split(' ')[1] }} {{ display.Price[label] }}</span>
+        {% endif %}{% endfor %}
+      </div>
+    </div>
+    <div class="badge">
+      <div class="signal {{ signal.signal.split(' ')[0] }}">{{ signal.signal }}</div>
+      <div class="signal-note">{{ "don't buy" if signal.signal == "HOLD" else signal.rule }}</div>
+      <div class="score">Composite <b>{{ signal.composite if signal.composite is not none else "–" }}</b>/100 · confidence {{ (signal.confidence * 100) | round | int }}%</div>
+    </div>
+  </header>
+
+  <div class="headline">{{ narrative.headline }}</div>
+  <p class="thesis">{{ narrative.thesis }}</p>
+  {% if signal.flags %}<div class="flags">⚠ {{ signal.flags | join(" · ") }}</div>{% endif %}
+
+  <div class="grid">
+    <div class="panel bars">
+      <h2>Sub-scores (50 = neutral)</h2>
+      {% for key, val in signal.subscores.items() %}
+      <div class="row">
+        <div>{{ key.replace("_", " ").capitalize() }} <span style="color:var(--muted)">·{{ weights[key] }}</span></div>
+        <div class="track"><div class="mid"></div>{% if val is not none %}<div class="fill" style="width: {{ val }}%; background: {{ '#15803d' if val >= 60 else ('#b91c1c' if val <= 40 else '#9ca3af') }}"></div>{% endif %}</div>
+        <div class="val">{{ val | round | int if val is not none else "–" }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="panel drivers">
+      <h2>Top drivers</h2>
+      <ul>{% for d in signal.drivers %}<li>{{ d }}</li>{% else %}<li>No dominant driver</li>{% endfor %}</ul>
+      <h2 style="margin-top:6px">Dominant narratives</h2>
+      <ul>{% for n in narrative.dominant_narratives %}<li>{{ n }}</li>{% else %}<li>–</li>{% endfor %}</ul>
+    </div>
+  </div>
+
+  <div class="chart" style="margin-top:6px">
+    <h2>Price vs daily sentiment (90d)</h2>
+    {{ chart_svg | safe }}
+  </div>
+
+  <div class="grid">
+    <div class="panel"><h2>Bull case</h2><ul>{% for p in narrative.bull_points %}<li>{{ p }}</li>{% endfor %}</ul></div>
+    <div class="panel"><h2>Bear case</h2><ul>{% for p in narrative.bear_points %}<li>{{ p }}</li>{% endfor %}</ul></div>
+  </div>
+
+  <div class="cols3" style="margin-top:8px">
+    {% for section in ["Sentiment", "Positioning", "Fundamentals"] %}{% if display[section] %}
+    <div><h2>{{ section }}</h2><table class="facts">
+      {% for k, v in display[section].items() %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}
+    </table></div>
+    {% endif %}{% endfor %}
+  </div>
+
+  <div class="grid" style="margin-top:8px">
+    <div class="panel"><h2>Catalysts</h2><ul>{% for c in narrative.upcoming_catalysts %}<li>{{ c }}</li>{% else %}<li>None identified</li>{% endfor %}</ul></div>
+    <div class="panel"><h2>Key risks</h2><ul>{% for r in narrative.key_risks %}<li>{{ r }}</li>{% endfor %}</ul></div>
+  </div>
+
+  <footer>
+    Market: {% for k, v in display.Market.items() %}{{ k }} {{ v }}{{ " · " if not loop.last }}{% endfor %}<br>
+    Coverage: {{ facts.sentiment.n_relevant_7d or 0 }} relevant texts (7d), {{ facts.sentiment.texts_scored_90d or 0 }} scored (90d) from {{ (facts.sentiment.source_mix_7d or {}).keys() | join(", ") or "–" }}.
+    Narrative: {{ narrative.source }}{% if narrative.unverified_numbers %} · unverified figures: {{ narrative.unverified_numbers | join(", ") }}{% endif %}.
+    Signal rules v1 (config/weights.yaml). Automated research output, not financial advice.
+  </footer>
+</div>
+</body>
+</html>

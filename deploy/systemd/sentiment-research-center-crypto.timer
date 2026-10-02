@@ -1,0 +1,10 @@
+# Schedule for sentiment-research-center-crypto.service (same times as scripts/register_tasks.ps1 on Windows).
+[Unit]
+Description=Sentiment Research Center: daily crypto run (schedule)
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 Europe/Berlin
+Persistent=true
+
+[Install]
+WantedBy=timers.target

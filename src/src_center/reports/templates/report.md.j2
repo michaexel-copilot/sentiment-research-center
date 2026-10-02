@@ -1,0 +1,71 @@
+# {{ asset.name }} ({{ asset.symbol }}) — Sentiment Research Report
+
+**Date:** {{ day }} · **Class:** {{ asset.asset_class }}{% if asset.sector %} · **Sector:** {{ asset.sector }}{% endif %} · **Data as of:** {{ facts.technical.price_date or "n/a" }}
+
+## Signal: {{ signal.signal }}{% if signal.signal == "HOLD" %} (don't buy){% endif %}
+
+| Composite | Confidence | Rule |
+|---|---|---|
+| {{ signal.composite if signal.composite is not none else "–" }} / 100 | {{ (signal.confidence * 100) | round | int }}% | {{ signal.rule }} |
+
+{% if signal.flags %}**Flags:**
+{% for f in signal.flags %}- ⚠ {{ f }}
+{% endfor %}{% endif %}
+### {{ narrative.headline }}
+
+{{ narrative.thesis }}
+
+**Bull case**
+{% for p in narrative.bull_points %}- {{ p }}
+{% endfor %}
+**Bear case**
+{% for p in narrative.bear_points %}- {{ p }}
+{% endfor %}
+**Dominant narratives:** {{ narrative.dominant_narratives | join("; ") or "–" }}
+
+**Upcoming catalysts:** {{ narrative.upcoming_catalysts | join("; ") or "none identified" }}
+
+**Key risks:** {{ narrative.key_risks | join("; ") }}
+
+## Sub-scores
+
+| Sub-score | Score | Weight | Reasons |
+|---|---:|---:|---|
+{% for key, val in signal.subscores.items() %}| {{ key.replace("_", " ") }} | {{ val | round(1) if val is not none else "–" }} | {{ weights[key] }} | {{ signal.reasons[key] | join("; ") }} |
+{% endfor %}
+
+## Fact sheet
+{% for section, rows in display.items() %}
+### {{ section }}
+
+| Metric | Value |
+|---|---:|
+{% for k, v in rows.items() %}| {{ k }} | {{ v }} |
+{% endfor %}{% endfor %}
+
+## Sources (last 7 days)
+
+{% for src, n in (facts.sentiment.source_mix_7d or {}).items() %}- {{ src }}: {{ n }} relevant texts
+{% else %}- no relevant texts
+{% endfor %}
+
+## Most influential texts
+
+### Bullish
+{% for t in top.bullish %}- **{{ "%+.2f" | format(t.sentiment) }}** [{{ t.source }}, {{ t.published_at[:10] }}] [{{ t.title | replace("[", "(") | replace("]", ")") }}]({{ t.url }}){% if t.tags %} — _{{ t.tags | join(", ") }}_{% endif %}
+{% else %}- none
+{% endfor %}
+### Bearish
+{% for t in top.bearish %}- **{{ "%+.2f" | format(t.sentiment) }}** [{{ t.source }}, {{ t.published_at[:10] }}] [{{ t.title | replace("[", "(") | replace("]", ")") }}]({{ t.url }}){% if t.tags %} — _{{ t.tags | join(", ") }}_{% endif %}
+{% else %}- none
+{% endfor %}
+
+## Signal history
+
+| Date | Signal | Composite |
+|---|---|---:|
+{% for h in history %}| {{ h.date }} | {{ h.signal }} | {{ h.composite if h.composite is not none else "–" }} |
+{% endfor %}
+
+---
+_Narrative: {{ narrative.source }}{% if narrative.unverified_numbers %}; figures not found in the fact sheet: {{ narrative.unverified_numbers | join(", ") }}{% endif %}. Automated research output, not financial advice._

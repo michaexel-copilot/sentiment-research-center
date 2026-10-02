@@ -1,0 +1,28 @@
+# Streamlit dashboard of the Sentiment Research Center. Installed by deploy/install.sh; see docs/DEPLOYMENT.md.
+[Unit]
+Description=Sentiment Research Center dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=srcenter
+Group=srcenter
+WorkingDirectory=/var/lib/sentiment-research-center
+Environment=HOME=/var/lib/sentiment-research-center
+Environment=SRC_HOME=/var/lib/sentiment-research-center
+Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/sentiment-research-center/browsers
+Environment=PATH=/var/lib/sentiment-research-center/.local/bin:/opt/sentiment-research-center/venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+
+# Only SRC_HOME (data, reports, Claude Code login) is writable.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/sentiment-research-center
+PrivateTmp=true
+ExecStart=/opt/sentiment-research-center/venv/bin/src dashboard --no-browser --address 0.0.0.0 --port 8501
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
