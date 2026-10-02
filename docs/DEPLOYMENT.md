@@ -1,6 +1,6 @@
 # Deployment (Proxmox container)
 
-The Sentiment Research Center runs on the Proxmox host **192.168.178.10** in the LXC container **108** (`paper-trading`, Ubuntu 24.04, also hosts the paper trading platform on port 8000). Every commit on `main` is deployed there first and only pushed to GitHub when the deployment succeeds.
+The Sentiment Research Center runs on the Proxmox host **192.168.178.10** in the LXC container **108** (`paper-trading`, Ubuntu 24.04, 4 GB RAM, also hosts the paper trading platform on port 8000). Every commit on `main` is deployed there first and only pushed to GitHub when the deployment succeeds.
 
 | What | Where |
 |---|---|
@@ -104,7 +104,7 @@ All commands run in the container (`ssh root@192.168.178.10`, then `pct enter 10
 
 ## Resources
 
-The container has 2 cores, 2 GB RAM, 512 MB swap and an 8 GB disk, shared with the paper trading platform. After installation about 3.5 GB of disk is free. A pipeline run uses up to `llm.claude.concurrency` (4) Claude Code processes plus Python and Chromium. If runs are killed for lack of memory (`journalctl -k | grep -i oom`), lower `llm.claude.concurrency` in `config/settings.yaml`, or give the container more memory on the Proxmox host (`pct set 108 --memory 4096`).
+The container has 2 cores, 4 GB RAM (raised from 2 GB on 2026-10-02 for the pipeline runs), 512 MB swap and an 8 GB disk, shared with the paper trading platform. After installation about 3.5 GB of disk is free. A pipeline run uses up to `llm.claude.concurrency` (4) Claude Code processes plus Python and Chromium. If runs are killed for lack of memory (`journalctl -k | grep -i oom`), lower `llm.claude.concurrency` in `config/settings.yaml`, or give the container more memory on the Proxmox host (`pct set 108 --memory <MB>`; this applies immediately, without a restart).
 
 ## Troubleshooting
 
